@@ -12,7 +12,9 @@ import { computeStats } from "./stats.js";
 import {
   saveRoute, loadRoutes, deleteRoute, savePhoto, deletePhotos,
   saveFolder, loadFolders, deleteFolder,
+  expand, loadRawRoutes, saveRawRoute, savePhotoWithId, getPhoto,
 } from "./storage.js";
+import { serializeBackup, parseBackup, planMerge } from "./backup.js";
 import { resizeImage } from "./photos.js";
 import { activityOf } from "./activities.js";
 import { fmtKm, fmtM, fmtDuration, fmtDate, esc } from "./format.js";
@@ -239,6 +241,8 @@ function showError(message) {
   clearTimeout(showError.timer);
   showError.timer = setTimeout(() => (toast.hidden = true), 6000);
 }
+// The toast is the only message channel; this name is for messages that are not errors.
+const showMessage = showError;
 
 // ======================= Vistas =======================
 const folderById = (id) => folders.find((f) => f.id === id);
@@ -255,6 +259,7 @@ function showHome(options = {}) {
   ui.screen = "home";
   renderHome(panel, { routes, folders, filters: ui.filters, tab: ui.tab, recBanner: recordingBanner(rec), ...options }, {
     onAdd: () => fileInput.click(),
+    onExport: isNativeApp() ? undefined : exportBackup,
     onRecord: showRecord,
     onOpen: showDetail,
     onTab: (tab, opts) => { ui.tab = tab; showHome(opts); },
@@ -399,11 +404,91 @@ async function storeNewPhotos(files) {
   return ids;
 }
 
+// ---- Backup: export and restore (web only) ----
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function dataUrlToBlob(url) {
+  return (await fetch(url)).blob();
+}
+
+// Local date as YYYY-MM-DD (toISOString would give the UTC date)
+function localDateStamp(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+async function exportBackup() {
+  try {
+    // Sample routes and folders are not part of the backup
+    const storedRoutes = (await loadRawRoutes()).filter((r) => !r.demo);
+    const storedFolders = (await loadFolders()).filter((f) => !f.demo);
+
+    const photos = {};
+    for (const id of new Set(storedRoutes.flatMap((r) => r.photoIds ?? []))) {
+      const blob = await getPhoto(id);
+      if (blob) photos[id] = await blobToDataUrl(blob);
+    }
+
+    const backup = serializeBackup({ routes: storedRoutes, folders: storedFolders, photos });
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `traildex-backup-${localDateStamp()}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (err) {
+    showError(`Could not export the backup: ${err.message}`);
+  }
+}
+
+async function restoreBackup(file) {
+  let plan;
+  let backup;
+  try {
+    backup = parseBackup(await file.text());
+    plan = planMerge(backup, routes.map((r) => r.id), folders.map((f) => f.id));
+  } catch (err) {
+    return showError(`${file.name}: ${err.message}`);
+  }
+
+  // Order matters: folders, then photos, then routes, so a saved route never
+  // points to a missing folder or photo. Importing the same file again finishes the rest.
+  try {
+    for (const folder of plan.folders) await saveFolder(folder);
+    for (const id of plan.photoIds) await savePhotoWithId(id, await dataUrlToBlob(backup.photos[id]));
+    for (const route of plan.routes) await saveRawRoute(route);
+  } catch (err) {
+    return showError(`Restore stopped: ${err.message}. Import the same file again to finish.`);
+  }
+
+  folders.push(...plan.folders);
+  const restored = plan.routes.map((r) => withDefaults({ ...r, points: expand(r.points) }));
+  routes.push(...restored);
+  showMessage(
+    `Restored ${restored.length} routes, ${plan.folders.length} folders · ${plan.skippedRoutes + plan.skippedFolders} already present`
+  );
+  showHome();
+  for (const r of restored) await ensureGeo(r);
+  updateCollectionCard();
+  announceAchievements();
+}
+
+// The native app has no backup yet: do not offer .json there
+if (isNativeApp()) fileInput.accept = ".gpx,.kml";
+
 // 1) Eliges un archivo → 2) se lee → 3) se abre el formulario ya relleno
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files[0];
   fileInput.value = ""; // permite volver a elegir el mismo archivo
   if (!file) return;
+  if (!isNativeApp() && /\.json$/i.test(file.name)) return restoreBackup(file);
 
   let parsed;
   try {

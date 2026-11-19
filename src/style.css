@@ -982,3 +982,4 @@ button, input, textarea { font: inherit; color: inherit; }
 /* Cabecera con Importar y Grabar: el título nunca se parte en dos líneas */
 .panel-header h1 { white-space: nowrap; }
 .panel-header .btn { flex-shrink: 0; padding: 8px 12px; white-space: nowrap; }
+.btn:disabled { opacity: 0.45; cursor: default; }

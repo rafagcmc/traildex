@@ -36,6 +36,7 @@ const stat = (value, label) =>
 // ---------- Inicio ----------
 // state: { routes, folders, filters, tab }   (tab = "list" | "folders")
 // handlers: onAdd, onOpen, onTab, onVisibleChange, onOpenFolder, onNewFolder
+// onExport is optional: without it (native app) there is no Export button
 export function renderHome(panel, state, handlers) {
   releasePhotos();
   const { routes, folders, filters, tab } = state;
@@ -43,7 +44,8 @@ export function renderHome(panel, state, handlers) {
   panel.innerHTML = `
     <header class="panel-header">
       <h1>Traildex</h1>
-      <button class="btn secondary" data-action="add" title="Add a route from a GPX or KML file">Import</button>
+      <button class="btn secondary" data-action="add" title="Add a route from a GPX or KML file, or restore a backup">Import</button>
+      ${handlers.onExport ? `<button class="btn secondary" data-action="export" title="Download a backup of all your routes"${routes.length ? "" : " disabled"}>Export</button>` : ""}
       <button class="btn primary rec-cta" data-action="record"><span class="rec-dot"></span>Record</button>
     </header>
     ${state.recBanner ?? ""}
@@ -68,6 +70,7 @@ export function renderHome(panel, state, handlers) {
 
   panel.querySelector('[data-action="demo"]').addEventListener("click", handlers.onDemo);
   panel.querySelector('[data-action="add"]').addEventListener("click", handlers.onAdd);
+  panel.querySelector('[data-action="export"]')?.addEventListener("click", handlers.onExport);
   panel.querySelector('[data-action="record"]').addEventListener("click", handlers.onRecord);
   panel.querySelector('[data-action="recording"]')?.addEventListener("click", handlers.onRecord);
   panel.querySelector('[data-action="album"]').addEventListener("click", handlers.onAlbum);
