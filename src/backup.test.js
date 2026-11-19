@@ -110,3 +110,45 @@ test("planMerge is idempotent: restoring the same backup again adds nothing", ()
   assert.equal(plan.skippedRoutes, 3);
   assert.equal(plan.skippedFolders, 2);
 });
+
+test("parseBackup throws when a route has no usable points", () => {
+  const bad = (points) => backupText({ routes: [{ id: "r1", name: "x", points }] });
+  assert.throws(() => parseBackup(bad(undefined)), /needs points/);
+  assert.throws(() => parseBackup(bad("nope")), /needs points/);
+  assert.throws(() => parseBackup(bad([5])), /needs points/);
+  assert.throws(() => parseBackup(bad([[1, "2"]])), /needs points/);
+  assert.throws(() => parseBackup(bad([[1, null]])), /needs points/);
+});
+
+test("planMerge sets folderId to null when the folder is neither in the backup nor on the device", () => {
+  const backup = parseBackup(backupText({
+    folders: [{ id: "f1", name: "Camino" }],
+    routes: [
+      { id: "a", name: "in backup", folderId: "f1", points: [] },
+      { id: "b", name: "on device", folderId: "local", points: [] },
+      { id: "c", name: "orphan", folderId: "gone", points: [] },
+      { id: "d", name: "no folder", folderId: null, points: [] },
+    ],
+  }));
+  const plan = planMerge(backup, [], ["local"]);
+
+  assert.deepEqual(plan.routes.map((r) => r.folderId), ["f1", "local", null, null]);
+  assert.equal(backup.routes[2].folderId, "gone"); // the parsed backup is not mutated
+});
+
+test("planMerge skips ids repeated inside the backup and keeps the first one", () => {
+  const backup = parseBackup(backupText({
+    folders: [{ id: "f1", name: "First" }, { id: "f1", name: "Second" }],
+    routes: [
+      { id: "r1", name: "First", points: [] },
+      { id: "r1", name: "Second", points: [] },
+      { id: "r2", name: "Other", points: [] },
+    ],
+  }));
+  const plan = planMerge(backup, [], []);
+
+  assert.deepEqual(plan.routes.map((r) => r.name), ["First", "Other"]);
+  assert.deepEqual(plan.folders.map((f) => f.name), ["First"]);
+  assert.equal(plan.skippedRoutes, 1);
+  assert.equal(plan.skippedFolders, 1);
+});

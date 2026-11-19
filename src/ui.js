@@ -45,7 +45,7 @@ export function renderHome(panel, state, handlers) {
     <header class="panel-header">
       <h1>Traildex</h1>
       <button class="btn secondary" data-action="add" title="Add a route from a GPX or KML file, or restore a backup">Import</button>
-      ${handlers.onExport ? `<button class="btn secondary" data-action="export" title="Download a backup of all your routes"${routes.length ? "" : " disabled"}>Export</button>` : ""}
+      ${handlers.onExport ? `<button class="btn secondary" data-action="export" title="Download a backup of all your routes"${routes.some((r) => !r.demo) ? "" : " disabled"}>Export</button>` : ""}
       <button class="btn primary rec-cta" data-action="record"><span class="rec-dot"></span>Record</button>
     </header>
     ${state.recBanner ?? ""}
