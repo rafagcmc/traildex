@@ -71,15 +71,19 @@ export function planMerge(backup, existingRouteIds, existingFolderIds) {
   const knownRoutes = new Set(existingRouteIds);
   const knownFolders = new Set(existingFolderIds);
 
-  const routes = backup.routes.filter((r) => !knownRoutes.has(r.id));
   const folders = backup.folders.filter((f) => !knownFolders.has(f.id));
 
+  // Routes are copied so photo ids the backup does not carry can be dropped
+  // without mutating the parsed backup.
   const photoIds = new Set();
-  for (const route of routes) {
-    for (const id of route.photoIds ?? []) {
-      if (id in backup.photos) photoIds.add(id);
-    }
-  }
+  const routes = backup.routes
+    .filter((r) => !knownRoutes.has(r.id))
+    .map((route) => {
+      if (!Array.isArray(route.photoIds)) return route;
+      const present = route.photoIds.filter((id) => id in backup.photos);
+      for (const id of present) photoIds.add(id);
+      return { ...route, photoIds: present };
+    });
 
   return {
     routes,

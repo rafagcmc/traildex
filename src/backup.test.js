@@ -89,6 +89,17 @@ test("planMerge skips existing ids and drops the photos of skipped routes", () =
   assert.equal(plan.skippedFolders, 1);
 });
 
+test("planMerge drops photo ids the backup does not carry, without mutating the backup", () => {
+  const backup = parseBackup(backupText({
+    routes: [{ id: "r1", name: "Day 1", photoIds: ["p1", "missing"], points: [] }],
+  }));
+  const plan = planMerge(backup, [], []);
+
+  assert.deepEqual(plan.routes[0].photoIds, ["p1"]);
+  assert.deepEqual(plan.photoIds, ["p1"]);
+  assert.deepEqual(backup.routes[0].photoIds, ["p1", "missing"]);
+});
+
 test("planMerge is idempotent: restoring the same backup again adds nothing", () => {
   const backup = parseBackup(backupText());
   const plan = planMerge(backup, ["r1", "r2", "r3"], ["f1", "f2"]);

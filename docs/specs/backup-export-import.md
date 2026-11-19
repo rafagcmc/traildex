@@ -11,6 +11,7 @@ Traildex has no backend: every route, folder, stage split, note and photo lives 
   - `planMerge(backup, existingRouteIds, existingFolderIds)` → `{ routes, folders, photoIds, skippedRoutes, skippedFolders }`: only items whose `id` is not already present, plus only the photo ids referenced by the routes being added.
 - `src/storage.js`: helpers to read the raw stored routes (compact points) and to write a route that is already compact, so export/restore does not expand and re-compact points; and a helper to save a photo under a given id, because `savePhoto` creates a new id and restored routes must keep pointing to their photos.
 - Export (web only): an **Export** button next to **Import** on the home screen (`src/ui.js`). It reads all routes, folders and photos, converts photo blobs to data URLs, and downloads `traildex-backup-YYYY-MM-DD.json` (local date) through a Blob URL and `<a download>`. With 0 routes the button is disabled.
+- Sample routes and folders (`demo: true`) are not exported; they can be loaded again from the sample button.
 - Restore: the existing file input (`#fileInput`, handler in `src/main.js`) also accepts `.json`. A `.json` file goes through `parseBackup` → `planMerge` → writes folders, photos and routes → updates the in-memory lists → shows a message `Restored X routes, Y folders · Z already present`. `.gpx`/`.kml` keep the current flow unchanged.
 - Restored routes go through `ensureGeo` like newly imported routes, so country/region data is recomputed when `GEO_VERSION` changed.
 - In the native app (`isNativeApp()`), the Export button is not shown and the file input does not accept `.json`, so restore is web only too.
@@ -26,7 +27,7 @@ Traildex has no backend: every route, folder, stage split, note and photo lives 
 - **Size**: photos in base64 make the file ~33 % larger than the stored blobs, and everything is built in memory. Acceptable for personal collections; no streaming in this spec.
 - **Partial restore**: if a write fails half way, some items are already saved. Order is folders → photos → routes, so a saved route never points to a missing photo or folder. Re-importing the same file completes the rest, because merge skips existing ids.
 - **Untrusted file**: a `.json` could be anything. `parseBackup` validates structure before any write. Route names and notes are already escaped with `esc()` when rendered.
-- **Assumption to confirm**: sample/demo routes, if they are stored in IndexedDB, are exported like any other route.
+- **Resolved**: sample routes are stored in IndexedDB with `demo: true` and are excluded from the export (see Scope). A route of the user kept inside a sample folder keeps a `folderId` that the backup does not carry.
 - **Assumption to confirm**: tests use Node's built-in runner (`node --test`, Node 22), so no new dependency.
 - **Not covered by commands**: download, IndexedDB writes and UI are checked by hand in the browser.
 

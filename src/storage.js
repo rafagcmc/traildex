@@ -25,7 +25,7 @@ function compact(points) {
   ]);
 }
 
-function expand(stored) {
+export function expand(stored) {
   // "t = null" por si la ruta se guardó con una versión anterior sin horas
   return stored.map(([lon, lat, ele, t = null]) => ({ lon, lat, ele, t }));
 }
@@ -39,6 +39,17 @@ export async function loadRoutes() {
   return stored.map((r) => ({ ...r, points: expand(r.points) }));
 }
 
+// Backup helpers: routes as stored (compact points), so export and restore
+// do not expand and re-compact every point.
+export function loadRawRoutes() {
+  return values(routeStore);
+}
+
+// The route must already have compact points.
+export async function saveRawRoute(route) {
+  await set(route.id, route, routeStore);
+}
+
 export async function deleteRoute(id) {
   await del(id, routeStore);
 }
@@ -47,6 +58,11 @@ export async function savePhoto(blob) {
   const id = newId();
   await set(id, blob, photoStore);
   return id;
+}
+
+// Restored routes keep pointing to their photos, so the id is given, not new.
+export async function savePhotoWithId(id, blob) {
+  await set(id, blob, photoStore);
 }
 
 export function getPhoto(id) {
