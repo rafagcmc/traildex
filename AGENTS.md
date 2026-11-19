@@ -52,7 +52,7 @@ android/             Capacitor Android project
 
 ## Conventions
 
-- Code comments are in Spanish, matching the existing ones. Commit messages and the README are in English.
+- Everything in this repo is in English: code, comments, tests, docs, commit messages and PR descriptions. Older files still have Spanish comments; do not translate them unless a task asks for it.
 - `public/geo/` and `public/demo/routes.json` are generated: change them through their script, not by hand.
 - `dist/` and `node_modules/` are never committed.
 - No new dependencies unless the task asks for them.
