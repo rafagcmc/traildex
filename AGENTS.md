@@ -29,6 +29,7 @@ A task is not done until every command below exits with code 0. Run them in this
 | # | Command | What it checks |
 |---|---|---|
 | 1 | `npm run build` | The app compiles and every import resolves |
+| 2 | `node --test src/backup.test.js` | Pure backup logic: serialize, parse and merge |
 
 Do not replace this list with other commands. New checks are added here when they exist. Vite's warning about chunks larger than 500 kB is known and is not a failure.
 
@@ -46,6 +47,7 @@ src/
   recorder.js, tracker.js, recordView.js, elevation.js   GPS recording
   stats.js, stages.js, parseTrack.js                     track maths and GPX/KML parsing
   storage.js         IndexedDB persistence
+  backup.js          pure backup logic: serialize, parse and merge (tested in backup.test.js)
 scripts/             build-geo.mjs and build-demo.py generate data under public/
 android/             Capacitor Android project
 ```
