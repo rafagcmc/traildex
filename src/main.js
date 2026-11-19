@@ -448,12 +448,17 @@ async function exportBackup() {
   }
 }
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
 async function restoreBackup(file) {
   let plan;
   let backup;
+  let restored;
   try {
     backup = parseBackup(await file.text());
     plan = planMerge(backup, routes.map((r) => r.id), folders.map((f) => f.id));
+    // Build the in-memory routes before any write, so a bad route cannot be saved half way
+    restored = plan.routes.map((r) => withDefaults({ ...r, points: expand(r.points) }));
   } catch (err) {
     return showError(`${file.name}: ${err.message}`);
   }
@@ -464,18 +469,24 @@ async function restoreBackup(file) {
     for (const folder of plan.folders) await saveFolder(folder);
     for (const id of plan.photoIds) await savePhotoWithId(id, await dataUrlToBlob(backup.photos[id]));
     for (const route of plan.routes) await saveRawRoute(route);
+    folders.push(...plan.folders);
+    routes.push(...restored);
   } catch (err) {
     return showError(`Restore stopped: ${err.message}. Import the same file again to finish.`);
   }
 
-  folders.push(...plan.folders);
-  const restored = plan.routes.map((r) => withDefaults({ ...r, points: expand(r.points) }));
-  routes.push(...restored);
   showMessage(
-    `Restored ${restored.length} routes, ${plan.folders.length} folders · ${plan.skippedRoutes + plan.skippedFolders} already present`
+    `Restored ${plural(restored.length, "route")} and ${plural(plan.folders.length, "folder")} · ` +
+    `${plan.skippedRoutes + plan.skippedFolders} skipped (already on this device or repeated in the file)`
   );
   showHome();
-  for (const r of restored) await ensureGeo(r);
+  for (const r of restored) {
+    try {
+      await ensureGeo(r);
+    } catch (err) {
+      console.error(`Could not compute the geo data of "${r.name}":`, err);
+    }
+  }
   updateCollectionCard();
   announceAchievements();
 }

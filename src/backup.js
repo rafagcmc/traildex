@@ -33,6 +33,10 @@ function checkList(backup, key) {
   }
 }
 
+function isPoint(p) {
+  return Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+}
+
 // Validates the structure before anything is written. Throws an Error with a
 // readable message when the file is not a usable backup.
 export function parseBackup(text) {
@@ -53,6 +57,12 @@ export function parseBackup(text) {
   checkList(backup, "routes");
   checkList(backup, "folders");
 
+  for (const route of backup.routes) {
+    if (!Array.isArray(route.points) || !route.points.every(isPoint)) {
+      throw new Error(`Backup is damaged: route "${route.id}" needs points with numeric lon and lat.`);
+    }
+  }
+
   if (!isPlainObject(backup.photos)) {
     throw new Error('Backup is damaged: "photos" must be an object.');
   }
@@ -71,18 +81,38 @@ export function planMerge(backup, existingRouteIds, existingFolderIds) {
   const knownRoutes = new Set(existingRouteIds);
   const knownFolders = new Set(existingFolderIds);
 
-  const folders = backup.folders.filter((f) => !knownFolders.has(f.id));
+  // Ids repeated inside the backup are skipped too: the first one wins.
+  const seenFolders = new Set();
+  const folders = backup.folders.filter((f) => {
+    if (knownFolders.has(f.id) || seenFolders.has(f.id)) return false;
+    seenFolders.add(f.id);
+    return true;
+  });
 
-  // Routes are copied so photo ids the backup does not carry can be dropped
-  // without mutating the parsed backup.
+  // A route can only point to a folder that will exist after the restore.
+  const reachableFolders = new Set([...knownFolders, ...backup.folders.map((f) => f.id)]);
+
+  // Routes are copied so photo ids the backup does not carry (and folder ids that
+  // would dangle) can be fixed without mutating the parsed backup.
   const photoIds = new Set();
+  const seenRoutes = new Set();
   const routes = backup.routes
-    .filter((r) => !knownRoutes.has(r.id))
+    .filter((r) => {
+      if (knownRoutes.has(r.id) || seenRoutes.has(r.id)) return false;
+      seenRoutes.add(r.id);
+      return true;
+    })
     .map((route) => {
-      if (!Array.isArray(route.photoIds)) return route;
-      const present = route.photoIds.filter((id) => id in backup.photos);
-      for (const id of present) photoIds.add(id);
-      return { ...route, photoIds: present };
+      let out = route;
+      if (out.folderId != null && !reachableFolders.has(out.folderId)) {
+        out = { ...out, folderId: null };
+      }
+      if (Array.isArray(out.photoIds)) {
+        const present = out.photoIds.filter((id) => id in backup.photos);
+        for (const id of present) photoIds.add(id);
+        out = { ...out, photoIds: present };
+      }
+      return out;
     });
 
   return {
